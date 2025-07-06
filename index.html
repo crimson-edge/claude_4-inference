@@ -109,6 +109,10 @@
                 <button id="clearButton" class="clear-button">Clear Conversation</button>
             </div>
             <textarea id="inputText" rows="5" placeholder="Enter your prompt here..."></textarea>
+            <div style="margin-bottom: 10px;">
+                <label for="fileInput">Attach File (Text or Image):</label>
+                <input type="file" id="fileInput" accept=".txt,image/*">
+            </div>
             <button id="submitButton">Submit</button>
         </div>
 
@@ -121,17 +125,68 @@
     <script>
         let conversationHistory = []; // To store messages for ongoing conversation
 
+        // Helper function to read file asynchronously
+        function readFileAsync(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+
+                reader.onload = () => {
+                    if (file.type.startsWith('text/')) {
+                        resolve(`\n\n[ATTACHED_TEXT_FILE_CONTENT]:\n${reader.result}\n\n`);
+                    } else if (file.type.startsWith('image/')) {
+                        resolve(`\n\n[ATTACHED_IMAGE_BASE64]:\n${reader.result}\n\n`);
+                    } else {
+                        reject(new Error('Unsupported file type for direct embedding.'));
+                    }
+                };
+
+                reader.onerror = (error) => {
+                    reject(error);
+                };
+
+                if (file.type.startsWith('text/')) {
+                    reader.readAsText(file);
+                } else if (file.type.startsWith('image/')) {
+                    reader.readAsDataURL(file); // Reads as Base64
+                } else {
+                    reject(new Error('Unsupported file type.'));
+                }
+            });
+        }
+
         document.getElementById('submitButton').addEventListener('click', async () => {
             const inputText = document.getElementById('inputText').value.trim();
-            if (!inputText) return; // Don't send empty messages
-
             const model = document.getElementById('modelSelector').value;
             const outputWindow = document.getElementById('outputWindow');
             const inputTextarea = document.getElementById('inputText');
+            const fileInput = document.getElementById('fileInput');
+            const selectedFile = fileInput.files[0];
+
+            let combinedInput = inputText;
+            let fileIndicator = '';
+
+            if (selectedFile) {
+                try {
+                    const fileContent = await readFileAsync(selectedFile);
+                    combinedInput += fileContent;
+                    fileIndicator = ' <small>(+ file)</small>';
+                } catch (error) {
+                    console.error('Error processing file:', error);
+                    outputWindow.innerHTML += `<div class="error-message">Error processing file: ${error.message}</div>`;
+                    outputWindow.scrollTop = outputWindow.scrollHeight;
+                    return; // Stop execution if file processing failed
+                } finally {
+                    fileInput.value = ''; // Clear the file input regardless of success/failure
+                }
+            }
+
+            if (!combinedInput && !selectedFile) {
+                return; // Don't send empty messages or if only unsupported file selected
+            }
 
             // Add user message to history and display
-            conversationHistory.push({ role: 'user', content: inputText });
-            outputWindow.innerHTML += `<div class="user-message"><strong>You:</strong><p>${inputText}</p></div>`;
+            conversationHistory.push({ role: 'user', content: combinedInput });
+            outputWindow.innerHTML += `<div class="user-message"><strong>You:</strong><p>${inputText}${fileIndicator}</p></div>`;
             outputWindow.scrollTop = outputWindow.scrollHeight; // Scroll to bottom
 
             inputTextarea.value = ''; // Clear input field
