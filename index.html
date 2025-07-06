@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Claude Inference UI</title>
+    <script src="https://js.puter.com/v2/"></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #0056b3;
+            text-align: center;
+        }
+        .input-section, .output-section {
+            margin-bottom: 20px;
+        }
+        textarea {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+            resize: vertical;
+        }
+        select, button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        select {
+            background-color: #e9ecef;
+            margin-right: 10px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #outputWindow {
+            background-color: #e9ecef;
+            padding: 15px;
+            border-radius: 4px;
+            min-height: 250px; /* Increased height for conversation */
+            max-height: 500px; /* Max height with scroll */
+            overflow-y: auto;
+            white-space: pre-wrap; /* Preserves whitespace and wraps text */
+            word-wrap: break-word; /* Wraps long words */
+        }
+        .user-message {
+            background-color: #d1e7dd;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            border-left: 5px solid #28a745;
+        }
+        .assistant-message {
+            background-color: #e2e3e5;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            border-left: 5px solid #6c757d;
+        }
+        .error-message {
+            color: #dc3545;
+        }
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        .clear-button {
+            background-color: #dc3545;
+            color: white;
+        }
+        .clear-button:hover {
+            background-color: #c82333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Claude AI Inference UI</h1>
+
+        <div class="input-section">
+            <label for="modelSelector">Select Claude Model:</label>
+            <div class="controls">
+                <select id="modelSelector">
+                    <option value="claude-sonnet-4">Claude Sonnet 4</option>
+                    <option value="claude-opus-4">Claude Opus 4</option>
+                </select>
+                <button id="clearButton" class="clear-button">Clear Conversation</button>
+            </div>
+            <textarea id="inputText" rows="5" placeholder="Enter your prompt here..."></textarea>
+            <button id="submitButton">Submit</button>
+        </div>
+
+        <div class="output-section">
+            <h2>Response:</h2>
+            <div id="outputWindow"></div>
+        </div>
+    </div>
+
+    <script>
+        let conversationHistory = []; // To store messages for ongoing conversation
+
+        document.getElementById('submitButton').addEventListener('click', async () => {
+            const inputText = document.getElementById('inputText').value.trim();
+            if (!inputText) return; // Don't send empty messages
+
+            const model = document.getElementById('modelSelector').value;
+            const outputWindow = document.getElementById('outputWindow');
+            const inputTextarea = document.getElementById('inputText');
+
+            // Add user message to history and display
+            conversationHistory.push({ role: 'user', content: inputText });
+            outputWindow.innerHTML += `<div class="user-message"><strong>You:</strong><p>${inputText}</p></div>`;
+            outputWindow.scrollTop = outputWindow.scrollHeight; // Scroll to bottom
+
+            inputTextarea.value = ''; // Clear input field
+
+            let fullAssistantResponse = ''; // To build up the full response for history
+            outputWindow.innerHTML += `<div class="assistant-message"><strong>Claude:</strong><p>`;
+
+            try {
+                // puter.ai.chat expects an array of messages for conversation history
+                const response = await puter.ai.chat(conversationHistory, { model: model, stream: true });
+
+                for await (const part of response) {
+                    if (part.text) {
+                        outputWindow.innerHTML += part.text;
+                        fullAssistantResponse += part.text;
+                    }
+                }
+                outputWindow.innerHTML += `</p></div>`; // Close paragraph and div for assistant message
+                outputWindow.scrollTop = outputWindow.scrollHeight; // Scroll to bottom
+
+                // Add assistant's full response to history
+                conversationHistory.push({ role: 'assistant', content: fullAssistantResponse });
+
+            } catch (error) {
+                console.error('Error:', error);
+                outputWindow.innerHTML += `<p class="error-message">Error: ${error.message}</p></div>`;
+                outputWindow.scrollTop = outputWindow.scrollHeight; // Scroll to bottom
+            }
+        });
+
+        document.getElementById('clearButton').addEventListener('click', () => {
+            conversationHistory = [];
+            document.getElementById('outputWindow').innerHTML = '';
+        });
+    </script>
+</body>
+</html>
